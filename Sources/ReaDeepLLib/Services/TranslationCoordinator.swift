@@ -76,8 +76,11 @@ public final class TranslationCoordinator: ObservableObject {
                 let result = try await executeTranslation(text: text)
                 guard !Task.isCancelled else { return }
 
-                self.translatedText = result.translatedText
-                self.alternatives = result.alternatives
+                let cleanedMain = Self.sanitize(result.translatedText)
+                let cleanedAlts = result.alternatives.map { Self.sanitize($0) }
+
+                self.translatedText = cleanedMain
+                self.alternatives = cleanedAlts
                 self.latencyMs = result.latencyMs
                 self.statusMessage = "\(result.engine) • \(Int(result.latencyMs)) ms"
 
@@ -90,7 +93,7 @@ public final class TranslationCoordinator: ObservableObject {
                 // Add to history
                 let item = TranslationHistoryItem(
                     sourceText: text,
-                    translatedText: result.translatedText,
+                    translatedText: cleanedMain,
                     sourceLang: self.sourceLang,
                     targetLang: self.targetLang,
                     engineUsed: result.engine,
@@ -200,5 +203,31 @@ public final class TranslationCoordinator: ObservableObject {
 
     public func speakTranslation() {
         TTSManager.shared.speak(text: translatedText, langCode: targetLang)
+    }
+
+    public static func sanitize(_ input: String) -> String {
+        var text = input
+        if text.contains("%") {
+            if let decoded = text.removingPercentEncoding {
+                text = decoded
+            }
+            text = text.replacingOccurrences(of: "%20", with: " ")
+            text = text.replacingOccurrences(of: "%2C", with: ",")
+            text = text.replacingOccurrences(of: "%2E", with: ".")
+            text = text.replacingOccurrences(of: "%3F", with: "?")
+            text = text.replacingOccurrences(of: "%21", with: "!")
+            text = text.replacingOccurrences(of: "%27", with: "'")
+            text = text.replacingOccurrences(of: "%22", with: "\"")
+        }
+
+        text = text.replacingOccurrences(of: "&quot;", with: "\"")
+        text = text.replacingOccurrences(of: "&#39;", with: "'")
+        text = text.replacingOccurrences(of: "&apos;", with: "'")
+        text = text.replacingOccurrences(of: "&amp;", with: "&")
+        text = text.replacingOccurrences(of: "&lt;", with: "<")
+        text = text.replacingOccurrences(of: "&gt;", with: ">")
+        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
