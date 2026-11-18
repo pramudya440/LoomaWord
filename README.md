@@ -86,7 +86,8 @@ cp -R dist/ReaDeepL.app /Applications/
 
 | Pintasan | Fungsi |
 | :--- | :--- |
-| `⌥ + Space` | Buka / Sembunyikan Floating HUD Translator dari mana saja |
+| **`⌘ + C + C`** | **Pintasan DeepL Asli**: Blok teks di aplikasi manapun lalu tekan `⌘ + C` dua kali dengan cepat. Panel terjemahan instan akan muncul melayang tepat di posisi kursor mouse Anda! |
+| `⌥ + Space` | Buka / Sembunyikan Floating HUD Translator secara manual dari mana saja |
 | `⌘ + ⇧ + D` | Alternatif Hotkey Global untuk Floating HUD |
 | `Esc` | Tutup panel Floating HUD |
 | `⌘ + C` (di tombol Salin) | Salin hasil terjemahan langsung ke clipboard |

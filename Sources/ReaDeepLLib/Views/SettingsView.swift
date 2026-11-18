@@ -106,8 +106,28 @@ public struct SettingsView: View {
 
                         Divider()
 
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Pintasan DeepL Asli:")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("⌘ + C + C (Tekan C 2x)")
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.accentColor.opacity(0.15))
+                                    .foregroundColor(.accentColor)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            Text("Sorot/blok teks apapun di aplikasi manapun (Safari, Chrome, PDF, VS Code, dll), lalu tekan ⌘+C dua kali dengan cepat. Panel terjemahan akan langsung muncul di dekat posisi kursor mouse Anda.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
                         HStack {
-                            Text("Pintasan Keyboard Global:")
+                            Text("Pintasan Panggil Manual:")
                                 .font(.subheadline)
                             Spacer()
                             Text("⌥ + Space  atau  ⌘ + ⇧ + D")
@@ -116,6 +136,20 @@ public struct SettingsView: View {
                                 .padding(.vertical, 4)
                                 .background(Color.secondary.opacity(0.12))
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+
+                        HStack {
+                            Text("Izin Aksesibilitas macOS:")
+                                .font(.subheadline)
+                            Spacer()
+                            Button("Buka Pengaturan Aksesibilitas") {
+                                HotkeyManager.requestAccessibilityPermission()
+                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .font(.caption)
                         }
                     }
                     .padding(8)

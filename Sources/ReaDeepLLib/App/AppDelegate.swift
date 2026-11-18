@@ -13,7 +13,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         setupHUDWindow()
-        setupHotkeys()
+        setupInterceptors()
     }
 
     // MARK: - Status Item
@@ -79,6 +79,48 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Triggers quick translation at the mouse cursor location (just like original DeepL Cmd+C+C)
+    public func triggerQuickTranslate(withText text: String? = nil, atMouse: Bool = true) {
+        guard let panel = hudWindow else { return }
+
+        if let text = text, !text.isEmpty {
+            coordinator.sourceText = text
+            coordinator.triggerTranslation()
+        } else {
+            coordinator.pasteAndTranslate()
+        }
+
+        if atMouse {
+            positionNearMouse(panel: panel)
+        } else {
+            panel.center()
+        }
+
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func positionNearMouse(panel: NSPanel) {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
+        let screenFrame = screen.visibleFrame
+
+        var originX = mouse.x - (panel.frame.width / 2)
+        var originY = mouse.y - panel.frame.height - 20
+
+        // Clamp horizontally
+        originX = max(screenFrame.minX + 10, min(originX, screenFrame.maxX - panel.frame.width - 10))
+
+        // If too low, place above cursor
+        if originY < screenFrame.minY + 10 {
+            originY = mouse.y + 20
+        }
+        // Clamp vertically
+        originY = max(screenFrame.minY + 10, min(originY, screenFrame.maxY - panel.frame.height - 10))
+
+        panel.setFrameOrigin(NSPoint(x: originX, y: originY))
+    }
+
     // MARK: - Main Workspace Window
     public func openMainWindow() {
         if let window = mainWindow {
@@ -103,14 +145,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // MARK: - Hotkeys
-    private func setupHotkeys() {
+    // MARK: - Interceptors (Hotkeys & Double ⌘+C)
+    private func setupInterceptors() {
+        // 1. Keyboard Hotkeys (⌥ Space, ⌘⇧D, and ⌘+C+C via key event)
         HotkeyManager.shared.onHotkeyPressed = { [weak self] in
             Task { @MainActor in
                 self?.toggleHUD()
             }
         }
+
+        HotkeyManager.shared.onDoubleCmdCPressed = { [weak self] in
+            Task { @MainActor in
+                self?.triggerQuickTranslate(atMouse: true)
+            }
+        }
         HotkeyManager.shared.startMonitoring()
+
+        // 2. Clipboard Monitor for universal ⌘+C+C in any app without needing accessibility
+        ClipboardMonitor.shared.onDoubleCopy = { [weak self] copiedText in
+            Task { @MainActor in
+                self?.triggerQuickTranslate(withText: copiedText, atMouse: true)
+            }
+        }
+        ClipboardMonitor.shared.start()
     }
 }
 

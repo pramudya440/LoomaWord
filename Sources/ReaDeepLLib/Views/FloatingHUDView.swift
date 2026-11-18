@@ -313,7 +313,7 @@ public struct FloatingHUDView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
-                    Text("⌥ Space / ⌘⇧D: Panggil HUD")
+                    Text("⌘CC: Cepat • ⌥Space: Panggil")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     Text("•")
