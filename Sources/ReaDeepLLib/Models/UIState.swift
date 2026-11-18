@@ -14,6 +14,7 @@ public final class UIState: ObservableObject {
     @Published public var glossaryNewNotes: String = ""
     @Published public var isAddingGlossary: Bool = false
     @Published public var historySearchText: String = ""
+    @Published public var showSourceInHUD: Bool = false
 
     private init() {}
 

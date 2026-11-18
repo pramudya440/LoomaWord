@@ -45,7 +45,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Floating HUD Panel
     private func setupHUDWindow() {
         let panel = HUDPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 320),
             styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
