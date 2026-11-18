@@ -70,14 +70,15 @@ rea deepL/
 ./scripts/make-app.sh
 ```
 
-### Menjalankan Langsung:
+### Memasang Permanen & Autorun saat Mac Dinyalakan:
+```bash
+./scripts/install.sh
+```
+Perintah ini akan memasang `ReaDeepL.app` ke `/Applications/` dan mendaftarkannya ke **Login Items macOS**, sehingga akan otomatis aktif setiap kali Mac dinyalakan tanpa perlu dibuka manual.
+
+### Menjalankan Langsung (Testing):
 ```bash
 ./scripts/run.sh
-```
-
-### Memasang ke folder `/Applications`:
-```bash
-cp -R dist/ReaDeepL.app /Applications/
 ```
 
 ---
