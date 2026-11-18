@@ -20,35 +20,64 @@ public struct FloatingHUDView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header Bar
-            HStack(spacing: 10) {
-                // Engine Selector
+            // MARK: - Ultra-Minimalist Header Bar
+            HStack(spacing: 8) {
+                // Compact Language Selector
+                HStack(spacing: 4) {
+                    CompactLanguageMenu(
+                        code: $coordinator.sourceLang,
+                        isSource: true
+                    ) {
+                        coordinator.triggerTranslation()
+                    }
+
+                    Button(action: { coordinator.swapLanguages() }) {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(coordinator.sourceLang == "auto" ? .secondary.opacity(0.3) : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(coordinator.sourceLang == "auto")
+
+                    CompactLanguageMenu(
+                        code: $coordinator.targetLang,
+                        isSource: false
+                    ) {
+                        coordinator.triggerTranslation()
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
+
+                // Compact Tone Menu
                 Menu {
-                    ForEach(TranslationEngineType.allCases) { engine in
+                    ForEach(TranslationTone.allCases) { tone in
                         Button(action: {
-                            coordinator.selectedEngine = engine
+                            coordinator.selectedTone = tone
                             coordinator.triggerTranslation()
                         }) {
                             HStack {
-                                Image(systemName: engine.icon)
-                                Text(engine.rawValue)
+                                Image(systemName: tone.icon)
+                                Text(tone.rawValue)
                             }
                         }
                     }
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: coordinator.selectedEngine.icon)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.accentColor)
-                        Text(coordinator.selectedEngine.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
+                    HStack(spacing: 4) {
+                        Image(systemName: coordinator.selectedTone.icon)
+                            .font(.system(size: 9))
+                        Text(coordinator.selectedTone.rawValue)
+                            .font(.system(size: 11, weight: .medium))
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7))
                             .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.accentColor.opacity(0.12))
+                    .background(coordinator.selectedTone == .standard ? Color.secondary.opacity(0.08) : Color.accentColor.opacity(0.15))
+                    .foregroundColor(coordinator.selectedTone == .standard ? .secondary : .accentColor)
                     .clipShape(Capsule())
                 }
                 .menuStyle(.borderlessButton)
@@ -56,181 +85,100 @@ public struct FloatingHUDView: View {
 
                 Spacer()
 
-                // Languages Bar
-                HStack(spacing: 6) {
-                    LanguagePickerView(
-                        title: "Source",
-                        selectedCode: $coordinator.sourceLang,
-                        isSource: true
-                    ) {
-                        coordinator.triggerTranslation()
-                    }
-
-                    Button(action: {
-                        coordinator.swapLanguages()
-                    }) {
-                        Image(systemName: "arrow.left.arrow.right")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(coordinator.sourceLang == "auto" ? .secondary.opacity(0.4) : .primary)
-                            .padding(6)
-                            .background(Color.secondary.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(coordinator.sourceLang == "auto")
-
-                    LanguagePickerView(
-                        title: "Target",
-                        selectedCode: $coordinator.targetLang,
-                        isSource: false
-                    ) {
-                        coordinator.triggerTranslation()
-                    }
+                if coordinator.isTranslating {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 12, height: 12)
                 }
 
-                Spacer()
-
-                // Window Control Buttons
-                HStack(spacing: 6) {
+                // Window Actions (Expand & Close)
+                HStack(spacing: 4) {
                     Button(action: onExpandToFull) {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 11))
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
-                            .padding(5)
-                            .background(Color.secondary.opacity(0.1))
-                            .clipShape(Circle())
+                            .padding(4)
                     }
                     .buttonStyle(.plain)
-                    .help("Buka Workspace Lengkap")
+                    .help("Buka Workspace Penuh")
 
                     Button(action: onClose) {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.secondary)
-                            .padding(5)
-                            .background(Color.secondary.opacity(0.1))
-                            .clipShape(Circle())
+                            .padding(4)
                     }
                     .buttonStyle(.plain)
                     .help("Tutup (Esc)")
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.primary.opacity(0.03))
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             Divider()
+                .opacity(0.4)
 
-            // MARK: - Tone / Formality Pill Bar
-            ScrollView(.horizontal, showsIndicators: false) {
-                ToneSelectorView(coordinator: coordinator)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-            }
-            .background(Color.primary.opacity(0.015))
-
-            Divider()
-
-            // MARK: - Main Translation Content
+            // MARK: - Translation Content
             VStack(spacing: 0) {
-                // Source Input Box
-                VStack(alignment: .leading, spacing: 4) {
+                // Source Input
+                VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text("Teks Asli")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .textCase(.uppercase)
-
                         Spacer()
-
                         if !coordinator.sourceText.isEmpty {
-                            Text("\(coordinator.sourceText.count) karakter")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-
                             Button(action: {
                                 coordinator.sourceText = ""
                                 coordinator.triggerTranslation()
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
                                     .font(.system(size: 11))
+                                    .foregroundColor(.secondary.opacity(0.7))
                             }
                             .buttonStyle(.plain)
-                        }
 
-                        Button(action: {
-                            coordinator.pasteAndTranslate()
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "doc.on.clipboard")
-                                Text("Tempel")
-                            }
-                            .font(.system(size: 10))
-                            .foregroundColor(.accentColor)
-                        }
-                        .buttonStyle(.plain)
-
-                        if !coordinator.sourceText.isEmpty {
-                            Button(action: {
-                                coordinator.speakSource()
-                            }) {
+                            Button(action: { coordinator.speakSource() }) {
                                 Image(systemName: "speaker.wave.2")
                                     .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.secondary.opacity(0.7))
                             }
                             .buttonStyle(.plain)
                         }
                     }
 
                     TextEditor(text: $coordinator.sourceText)
-                        .font(.system(size: 14))
+                        .font(.system(size: 13.5))
                         .scrollContentBackground(.hidden)
-                        .frame(minHeight: 80, maxHeight: 120)
+                        .frame(minHeight: 65, maxHeight: 95)
                         .onChange(of: coordinator.sourceText) {
                             if coordinator.settings.instantTranslateAsYouType {
                                 coordinator.triggerTranslation(debounce: true)
                             }
                         }
                 }
-                .padding(14)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
 
                 Divider()
+                    .opacity(0.4)
 
-                // Translated Output Box
-                VStack(alignment: .leading, spacing: 6) {
+                // Translated Output
+                VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        HStack(spacing: 6) {
-                            Text("Terjemahan")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-
-                            if coordinator.isTranslating {
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                                    .frame(width: 12, height: 12)
-                            }
-                        }
-
                         Spacer()
-
                         if uiState.hudCopiedNotice {
                             Text("Tersalin!")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.green)
+                                .transition(.opacity)
                         }
 
                         if !coordinator.translatedText.isEmpty {
-                            Button(action: {
-                                coordinator.speakTranslation()
-                            }) {
+                            Button(action: { coordinator.speakTranslation() }) {
                                 Image(systemName: "speaker.wave.2.fill")
                                     .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.secondary.opacity(0.7))
                             }
                             .buttonStyle(.plain)
-                            .help("Dengarkan Pengucapan")
 
                             Button(action: {
                                 coordinator.copyTranslation()
@@ -240,12 +188,12 @@ public struct FloatingHUDView: View {
                                     Image(systemName: "doc.on.doc.fill")
                                     Text("Salin")
                                 }
-                                .font(.system(size: 11, weight: .semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2.5)
                                 .background(Color.accentColor.opacity(0.15))
                                 .foregroundColor(.accentColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
                             }
                             .buttonStyle(.plain)
                         }
@@ -255,90 +203,101 @@ public struct FloatingHUDView: View {
                         Text(err)
                             .font(.system(size: 12))
                             .foregroundColor(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 4)
                     } else {
                         ScrollView {
-                            Text(coordinator.translatedText.isEmpty ? (coordinator.sourceText.isEmpty ? "Mulai ketik atau tempel teks untuk menerjemahkan..." : "Menunggu terjemahan...") : coordinator.translatedText)
+                            Text(coordinator.translatedText.isEmpty ? (coordinator.sourceText.isEmpty ? "Hasil terjemahan akan muncul di sini..." : "Menerjemahkan...") : coordinator.translatedText)
                                 .font(.system(size: 14, weight: coordinator.translatedText.isEmpty ? .regular : .medium))
-                                .foregroundColor(coordinator.translatedText.isEmpty ? .secondary : .primary)
+                                .foregroundColor(coordinator.translatedText.isEmpty ? .secondary.opacity(0.5) : .primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .textSelection(.enabled)
                         }
-                        .frame(minHeight: 80, maxHeight: 120)
+                        .frame(minHeight: 70, maxHeight: 110)
                     }
 
-                    // Alternatives / Synonyms (DeepL Pro Style)
+                    // Compact Alternative chips
                     if !coordinator.alternatives.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Alternatif:")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.secondary)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    ForEach(coordinator.alternatives, id: \.self) { alt in
-                                        Button(action: {
-                                            coordinator.translatedText = alt
-                                        }) {
-                                            Text(alt)
-                                                .font(.system(size: 11))
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 3)
-                                                .background(Color.secondary.opacity(0.1))
-                                                .clipShape(RoundedRectangle(cornerRadius: 5))
-                                        }
-                                        .buttonStyle(.plain)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 5) {
+                                ForEach(coordinator.alternatives, id: \.self) { alt in
+                                    Button(action: {
+                                        coordinator.translatedText = alt
+                                    }) {
+                                        Text(alt)
+                                            .font(.system(size: 10.5))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.secondary.opacity(0.08))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                     }
                 }
-                .padding(14)
-                .background(Color.secondary.opacity(0.04))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.secondary.opacity(0.03))
             }
-
-            Divider()
-
-            // MARK: - Footer Status Bar
-            HStack {
-                if !coordinator.statusMessage.isEmpty {
-                    Text(coordinator.statusMessage)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Text("⌘CC: Cepat • ⌥Space: Panggil")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    Text("•")
-                        .foregroundColor(.secondary.opacity(0.5))
-                    Text("Esc: Tutup")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Color.primary.opacity(0.02))
         }
-        .frame(width: 580)
+        .frame(width: 480)
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
-        .onAppear {
-            if coordinator.settings.autoTranslateClipboard && coordinator.sourceText.isEmpty {
-                coordinator.pasteAndTranslate()
+        .shadow(color: Color.black.opacity(0.22), radius: 18, x: 0, y: 8)
+    }
+}
+
+// MARK: - Compact Language Menu
+struct CompactLanguageMenu: View {
+    @Binding var code: String
+    let isSource: Bool
+    let onSelection: () -> Void
+
+    private var currentLang: Language {
+        if isSource && code == "auto" {
+            return Language.auto
+        }
+        return Language.find(code: code) ?? Language(code: code, name: code.uppercased(), nativeName: "", flag: "🌐")
+    }
+
+    var body: some View {
+        Menu {
+            if isSource {
+                Button(action: {
+                    code = "auto"
+                    onSelection()
+                }) {
+                    Text("\(Language.auto.flag)  \(Language.auto.name)")
+                }
+                Divider()
+            }
+
+            ForEach(Language.allLanguages) { lang in
+                Button(action: {
+                    code = lang.code
+                    onSelection()
+                }) {
+                    Text("\(lang.flag)  \(lang.name)")
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(currentLang.flag)
+                    .font(.system(size: 11))
+                Text(currentLang.code.uppercased())
+                    .font(.system(size: 11, weight: .bold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7))
+                    .foregroundColor(.secondary)
             }
         }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 }

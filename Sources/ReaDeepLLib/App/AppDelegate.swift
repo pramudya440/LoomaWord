@@ -1,13 +1,25 @@
 import Cocoa
 import SwiftUI
 
+// Custom NSPanel subclass that accepts keyboard input and handles Esc cleanly
+final class HUDPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        orderOut(nil)
+    }
+}
+
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     public static let shared = AppDelegate()
 
     private var statusItem: NSStatusItem?
-    private var hudWindow: NSPanel?
+    private var hudWindow: HUDPanel?
     private var mainWindow: NSWindow?
+    private var outsideClickGlobalMonitor: Any?
+    private var outsideClickLocalMonitor: Any?
     private let coordinator = TranslationCoordinator.shared
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,9 +44,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Floating HUD Panel
     private func setupHUDWindow() {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 580, height: 380),
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+        let panel = HUDPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
+            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -48,14 +60,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
 
+        // Auto-dismiss when window loses key focus
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: panel, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.dismissHUD()
+            }
+        }
+
         let hudView = FloatingHUDView(
             coordinator: coordinator,
             onExpandToFull: { [weak self] in
-                self?.hudWindow?.orderOut(nil)
+                self?.dismissHUD()
                 self?.openMainWindow()
             },
             onClose: { [weak self] in
-                self?.hudWindow?.orderOut(nil)
+                self?.dismissHUD()
             }
         )
 
@@ -67,12 +86,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func toggleHUD() {
         guard let panel = hudWindow else { return }
         if panel.isVisible {
-            panel.orderOut(nil)
+            dismissHUD()
         } else {
             panel.center()
-            panel.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-
+            showHUD(panel: panel)
             if coordinator.settings.autoTranslateClipboard {
                 coordinator.pasteAndTranslate()
             }
@@ -96,8 +113,55 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.center()
         }
 
+        showHUD(panel: panel)
+    }
+
+    private func showHUD(panel: HUDPanel) {
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        startOutsideClickMonitor()
+    }
+
+    public func dismissHUD() {
+        stopOutsideClickMonitor()
+        hudWindow?.orderOut(nil)
+    }
+
+    // MARK: - Auto-dismiss on Click Outside
+    private func startOutsideClickMonitor() {
+        stopOutsideClickMonitor()
+
+        // Global monitor (clicks in other apps)
+        outsideClickGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let panel = self?.hudWindow, panel.isVisible else { return }
+                let mouse = NSEvent.mouseLocation
+                if !panel.frame.contains(mouse) {
+                    self?.dismissHUD()
+                }
+            }
+        }
+
+        // Local monitor (clicks within our own app windows/menus)
+        outsideClickLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let panel = self?.hudWindow, panel.isVisible else { return event }
+            let mouse = NSEvent.mouseLocation
+            if !panel.frame.contains(mouse) {
+                self?.dismissHUD()
+            }
+            return event
+        }
+    }
+
+    private func stopOutsideClickMonitor() {
+        if let g = outsideClickGlobalMonitor {
+            NSEvent.removeMonitor(g)
+            outsideClickGlobalMonitor = nil
+        }
+        if let l = outsideClickLocalMonitor {
+            NSEvent.removeMonitor(l)
+            outsideClickLocalMonitor = nil
+        }
     }
 
     private func positionNearMouse(panel: NSPanel) {
@@ -106,14 +170,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let screenFrame = screen.visibleFrame
 
         var originX = mouse.x - (panel.frame.width / 2)
-        var originY = mouse.y - panel.frame.height - 20
+        var originY = mouse.y - panel.frame.height - 15
 
         // Clamp horizontally
         originX = max(screenFrame.minX + 10, min(originX, screenFrame.maxX - panel.frame.width - 10))
 
         // If too low, place above cursor
         if originY < screenFrame.minY + 10 {
-            originY = mouse.y + 20
+            originY = mouse.y + 15
         }
         // Clamp vertically
         originY = max(screenFrame.minY + 10, min(originY, screenFrame.maxY - panel.frame.height - 10))
@@ -161,7 +225,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         HotkeyManager.shared.startMonitoring()
 
-        // 2. Clipboard Monitor for universal ⌘+C+C in any app without needing accessibility
+        // 2. Clipboard Monitor for universal ⌘+C+C in any app
         ClipboardMonitor.shared.onDoubleCopy = { [weak self] copiedText in
             Task { @MainActor in
                 self?.triggerQuickTranslate(withText: copiedText, atMouse: true)
