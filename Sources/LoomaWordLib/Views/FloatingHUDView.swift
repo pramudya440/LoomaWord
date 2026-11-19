@@ -148,6 +148,42 @@ public struct FloatingHUDView: View {
                     .buttonStyle(.plain)
                     .help("Buka Workspace Penuh")
 
+                    // More Options Menu
+                    Menu {
+                        Button(action: onExpandToFull) {
+                            Label("Buka Workspace Dokumen", systemImage: "doc.text")
+                        }
+                        Button(action: {
+                            onExpandToFull()
+                            UIState.shared.selectedTab = 3
+                        }) {
+                            Label("Pengaturan...", systemImage: "gearshape")
+                        }
+                        Divider()
+                        Button(action: {
+                            coordinator.settings.showMenuBarIcon.toggle()
+                            coordinator.saveSettings()
+                            AppDelegate.shared.updateMenuBarIconVisibility(visible: coordinator.settings.showMenuBarIcon)
+                        }) {
+                            Label(coordinator.settings.showMenuBarIcon ? "Sembunyikan Icon Menu Bar" : "Tampilkan Icon Menu Bar",
+                                  systemImage: coordinator.settings.showMenuBarIcon ? "eye.slash" : "eye")
+                        }
+                        Divider()
+                        Button(role: .destructive, action: {
+                            NSApp.terminate(nil)
+                        }) {
+                            Label("Keluar dari LoomaWord", systemImage: "power")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .padding(3)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Opsi Tambahan")
+
                     // Close
                     Button(action: onClose) {
                         Image(systemName: "xmark")

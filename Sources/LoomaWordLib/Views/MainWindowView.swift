@@ -12,7 +12,7 @@ public struct MainWindowView: View {
     public var body: some View {
         NavigationSplitView {
             List(selection: $uiState.selectedTab) {
-                Label("Penerjemah", systemImage: "character.book.closed.fill")
+                Label("Penerjemah", systemImage: "character.bubble.fill")
                     .tag(0)
                 Label("Kamus Istilah", systemImage: "text.book.closed.fill")
                     .tag(1)

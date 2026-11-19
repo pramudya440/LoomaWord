@@ -103,6 +103,19 @@ public struct SettingsView: View {
                         Toggle("Terjemahkan instan saat mengetik (debounce 350ms)", isOn: $coordinator.settings.instantTranslateAsYouType)
                         Toggle("Putar suara pengucapan (TTS) otomatis setelah selesai terjemah", isOn: $coordinator.settings.playSpeechAfterTranslation)
                         Toggle("Jaga jendela HUD selalu di atas (Stay on top)", isOn: $coordinator.settings.stayOnTop)
+                        Toggle("Tampilkan icon LoomaWord di Menu Bar (Navbar)", isOn: Binding(
+                            get: { coordinator.settings.showMenuBarIcon },
+                            set: { newValue in
+                                coordinator.settings.showMenuBarIcon = newValue
+                                coordinator.saveSettings()
+                                AppDelegate.shared.updateMenuBarIconVisibility(visible: newValue)
+                            }
+                        ))
+                        if !coordinator.settings.showMenuBarIcon {
+                            Text("💡 Icon disembunyikan dari navbar. LoomaWord tetap siap dipakai kapan saja via pintasan ⌥ + Space atau ⌘ + C + C.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
 
                         Divider()
 
@@ -151,6 +164,27 @@ public struct SettingsView: View {
                             .buttonStyle(.bordered)
                             .font(.caption)
                         }
+                    }
+                    .padding(8)
+                }
+
+                // MARK: - Manajemen Aplikasi
+                GroupBox(label: Label("Aplikasi", systemImage: "power.circle")) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Keluar dari LoomaWord")
+                                .font(.subheadline.bold())
+                            Text("Tutup dan hentikan aplikasi LoomaWord sepenuhnya dari background.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button(role: .destructive, action: {
+                            NSApp.terminate(nil)
+                        }) {
+                            Label("Keluar Aplikasi", systemImage: "power")
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .padding(8)
                 }

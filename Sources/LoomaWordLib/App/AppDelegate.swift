@@ -12,7 +12,7 @@ final class HUDPanel: NSPanel {
 }
 
 @MainActor
-public final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     public static let shared = AppDelegate()
 
     private var statusItem: NSStatusItem?
@@ -30,16 +30,100 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Status Item
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        guard coordinator.settings.showMenuBarIcon else { return }
+        if statusItem == nil {
+            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        }
+        statusItem?.behavior = [.removalAllowed]
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "character.bubble.fill", accessibilityDescription: "LoomaWord")
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.action = #selector(statusItemClicked)
             button.target = self
         }
     }
 
+    public func updateMenuBarIconVisibility(visible: Bool) {
+        if visible {
+            if statusItem == nil {
+                setupStatusItem()
+            }
+            statusItem?.isVisible = true
+        } else {
+            statusItem?.isVisible = false
+        }
+    }
+
     @objc private func statusItemClicked() {
+        guard let event = NSApp.currentEvent else {
+            toggleHUD()
+            return
+        }
+
+        if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
+            showContextMenu()
+        } else {
+            toggleHUD()
+        }
+    }
+
+    private func showContextMenu() {
+        let menu = NSMenu()
+        menu.delegate = self
+
+        let hudItem = NSMenuItem(title: "Buka LoomaWord HUD", action: #selector(menuOpenHUD), keyEquivalent: "")
+        hudItem.target = self
+        menu.addItem(hudItem)
+
+        let workspaceItem = NSMenuItem(title: "Buka Workspace Penuh", action: #selector(menuOpenWorkspace), keyEquivalent: "o")
+        workspaceItem.target = self
+        menu.addItem(workspaceItem)
+
+        let settingsItem = NSMenuItem(title: "Pengaturan...", action: #selector(menuOpenSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let hideItem = NSMenuItem(title: "Sembunyikan Icon dari Menu Bar", action: #selector(menuHideIcon), keyEquivalent: "")
+        hideItem.target = self
+        menu.addItem(hideItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Keluar dari LoomaWord", action: #selector(menuQuit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        statusItem?.menu = menu
+        statusItem?.button?.performClick(nil)
+    }
+
+    public func menuDidClose(_ menu: NSMenu) {
+        statusItem?.menu = nil
+    }
+
+    @objc private func menuOpenHUD() {
         toggleHUD()
+    }
+
+    @objc private func menuOpenWorkspace() {
+        openMainWindow()
+    }
+
+    @objc private func menuOpenSettings() {
+        openMainWindow()
+        UIState.shared.selectedTab = 3
+    }
+
+    @objc private func menuHideIcon() {
+        coordinator.settings.showMenuBarIcon = false
+        StorageManager.shared.saveSettings(coordinator.settings)
+        updateMenuBarIconVisibility(visible: false)
+    }
+
+    @objc private func menuQuit() {
+        NSApp.terminate(nil)
     }
 
     // MARK: - Floating HUD Panel

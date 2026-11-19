@@ -117,6 +117,7 @@ public struct AppSettings: Codable {
     public var globalHotkeyString: String = "⌥ + Space"
     public var stayOnTop: Bool = true
     public var soundEffects: Bool = true
+    public var showMenuBarIcon: Bool = true
 
     public init() {}
 }
