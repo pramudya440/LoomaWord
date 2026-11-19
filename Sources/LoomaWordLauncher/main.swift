@@ -11,4 +11,7 @@ func main() {
     app.run()
 }
 
-main()
+// Top-level code is not MainActor-isolated under Swift 5 language mode.
+MainActor.assumeIsolated {
+    main()
+}

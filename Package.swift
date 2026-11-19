@@ -11,12 +11,22 @@ let package = Package(
     targets: [
         .target(
             name: "LoomaWordLib",
-            path: "Sources/LoomaWordLib"
+            dependencies: [],
+            path: "Sources/LoomaWordLib",
+            linkerSettings: [
+                // Carbon `RegisterEventHotKey` for global hotkeys (no Accessibility permission).
+                .linkedFramework("Carbon")
+            ]
         ),
         .executableTarget(
             name: "LoomaWordLauncher",
             dependencies: ["LoomaWordLib"],
             path: "Sources/LoomaWordLauncher"
+        ),
+        .testTarget(
+            name: "LoomaWordLibTests",
+            dependencies: ["LoomaWordLib"],
+            path: "Tests/LoomaWordLibTests"
         )
     ]
 )

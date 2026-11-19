@@ -1,10 +1,12 @@
 import Foundation
+import os
 
 public final class StorageManager {
     public static let shared = StorageManager()
 
     private let fileManager = FileManager.default
     private let appSupportDir: URL
+    private let logger = Logger(subsystem: "com.pramudya.loomaword", category: "storage")
 
     private var settingsURL: URL { appSupportDir.appendingPathComponent("settings.json") }
     private var glossaryURL: URL { appSupportDir.appendingPathComponent("glossary.json") }
@@ -24,70 +26,86 @@ public final class StorageManager {
         try? fileManager.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
     }
 
+    // MARK: - Generic JSON I/O
+
+    /// Atomic write — a crash mid-write can no longer truncate the file.
+    private func write(_ data: Data, to url: URL) {
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            logger.error("Failed to write \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Read a JSON file; if it exists but is corrupt, move it aside instead of
+    /// silently overwriting the user's data with defaults on the next save.
+    private func read<T>(_ type: T.Type, from url: URL, fallback: () -> T) -> T where T: Decodable {
+        guard fileManager.fileExists(atPath: url.path) else { return fallback() }
+        guard let data = try? Data(contentsOf: url) else {
+            backupCorrupt(url)
+            return fallback()
+        }
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            logger.error("Corrupt \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            backupCorrupt(url)
+            return fallback()
+        }
+    }
+
+    private func backupCorrupt(_ url: URL) {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let backup = url.appendingPathExtension("corrupt-\(stamp).json")
+        try? fileManager.moveItem(at: url, to: backup)
+        logger.warning("Backed up corrupt file to \(backup.lastPathComponent, privacy: .public)")
+    }
+
     // MARK: - Settings
     public func loadSettings() -> AppSettings {
-        guard let data = try? Data(contentsOf: settingsURL),
-              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+        read(AppSettings.self, from: settingsURL) {
             let defaults = AppSettings()
-            saveSettings(defaults)
+            self.saveSettings(defaults)
             return defaults
         }
-        return settings
     }
 
     public func saveSettings(_ settings: AppSettings) {
         if let data = try? JSONEncoder().encode(settings) {
-            try? data.write(to: settingsURL)
+            write(data, to: settingsURL)
         }
     }
 
     // MARK: - Glossary
     public func loadGlossary() -> [GlossaryItem] {
-        guard let data = try? Data(contentsOf: glossaryURL),
-              let items = try? JSONDecoder().decode([GlossaryItem].self, from: data) else {
+        read([GlossaryItem].self, from: glossaryURL) {
             let samples: [GlossaryItem] = [
                 GlossaryItem(sourceTerm: "pipeline", targetTerm: "alur kerja", sourceLang: "en", targetLang: "id", notes: "Konteks rekayasa perangkat lunak"),
                 GlossaryItem(sourceTerm: "prompt engineering", targetTerm: "rekayasa prompt", sourceLang: "en", targetLang: "id", notes: "Konteks AI"),
                 GlossaryItem(sourceTerm: "bug", targetTerm: "kutu sistem", sourceLang: "en", targetLang: "id", isEnabled: false, notes: "Istilah teknis"),
                 GlossaryItem(sourceTerm: "deploy", targetTerm: "menerapkan", sourceLang: "en", targetLang: "id", notes: "Rilis sistem")
             ]
-            saveGlossary(samples)
+            self.saveGlossary(samples)
             return samples
         }
-        return items
     }
 
     public func saveGlossary(_ items: [GlossaryItem]) {
         if let data = try? JSONEncoder().encode(items) {
-            try? data.write(to: glossaryURL)
+            write(data, to: glossaryURL)
         }
     }
 
     // MARK: - History
     public func loadHistory() -> [TranslationHistoryItem] {
-        guard let data = try? Data(contentsOf: historyURL),
-              let history = try? JSONDecoder().decode([TranslationHistoryItem].self, from: data) else {
-            return []
-        }
-        return history
+        read([TranslationHistoryItem].self, from: historyURL) { [] }
     }
 
     public func saveHistory(_ items: [TranslationHistoryItem]) {
-        // Keep latest 250 items
         let trimmed = Array(items.prefix(250))
         if let data = try? JSONEncoder().encode(trimmed) {
-            try? data.write(to: historyURL)
+            write(data, to: historyURL)
         }
-    }
-
-    public func addHistoryItem(_ item: TranslationHistoryItem) {
-        var current = loadHistory()
-        // Deduplicate adjacent
-        if let first = current.first, first.sourceText == item.sourceText && first.targetLang == item.targetLang {
-            return
-        }
-        current.insert(item, at: 0)
-        saveHistory(current)
     }
 
     public func clearHistory() {

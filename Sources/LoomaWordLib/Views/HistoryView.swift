@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 public struct HistoryView: View {
     @ObservedObject var coordinator: TranslationCoordinator
@@ -34,9 +35,8 @@ public struct HistoryView: View {
                 Spacer()
 
                 if !coordinator.history.isEmpty {
-                    Button(action: {
-                        coordinator.history.removeAll()
-                        StorageManager.shared.clearHistory()
+                    Button(role: .destructive, action: {
+                        confirmClearAll()
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "trash")
@@ -134,6 +134,19 @@ public struct HistoryView: View {
                 }
                 .listStyle(.inset)
             }
+        }
+    }
+
+    /// Deleting the whole history is irreversible — always confirm first.
+    private func confirmClearAll() {
+        let alert = NSAlert()
+        alert.messageText = "Hapus semua riwayat terjemahan?"
+        alert.informativeText = "\(coordinator.history.count) entri akan dihapus permanen dari Mac Anda."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Hapus Semua Riwayat")
+        alert.addButton(withTitle: "Batal")
+        if alert.runModal() == .alertFirstButtonReturn {
+            coordinator.clearHistory()
         }
     }
 }

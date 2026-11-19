@@ -29,9 +29,8 @@ public struct TranslationHistoryItem: Identifiable, Codable {
     public var targetLang: String
     public var engineUsed: String
     public var toneUsed: String
-    public var isFavorite: Bool
 
-    public init(id: UUID = UUID(), timestamp: Date = Date(), sourceText: String, translatedText: String, sourceLang: String, targetLang: String, engineUsed: String, toneUsed: String, isFavorite: Bool = false) {
+    public init(id: UUID = UUID(), timestamp: Date = Date(), sourceText: String, translatedText: String, sourceLang: String, targetLang: String, engineUsed: String, toneUsed: String) {
         self.id = id
         self.timestamp = timestamp
         self.sourceText = sourceText
@@ -40,7 +39,6 @@ public struct TranslationHistoryItem: Identifiable, Codable {
         self.targetLang = targetLang
         self.engineUsed = engineUsed
         self.toneUsed = toneUsed
-        self.isFavorite = isFavorite
     }
 }
 
@@ -51,14 +49,17 @@ public struct TranslationResult: Equatable {
     public let alternatives: [String]
     public let latencyMs: Double
     public let error: String?
+    /// True when the result came from the in-memory cache instead of a network call.
+    public let isCached: Bool
 
-    public init(translatedText: String, detectedSourceLang: String? = nil, engine: String, alternatives: [String] = [], latencyMs: Double = 0, error: String? = nil) {
+    public init(translatedText: String, detectedSourceLang: String? = nil, engine: String, alternatives: [String] = [], latencyMs: Double = 0, error: String? = nil, isCached: Bool = false) {
         self.translatedText = translatedText
         self.detectedSourceLang = detectedSourceLang
         self.engine = engine
         self.alternatives = alternatives
         self.latencyMs = latencyMs
         self.error = error
+        self.isCached = isCached
     }
 
     public static func failure(_ message: String, engine: String) -> TranslationResult {

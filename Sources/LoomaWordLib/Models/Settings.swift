@@ -74,14 +74,26 @@ public enum AIProvider: String, CaseIterable, Identifiable, Codable {
 
     public var id: String { rawValue }
 
+    /// Default model for each provider.
+    ///
+    /// Only IDs that are currently *live* and confirmed by the provider docs should be
+    /// used here. Retired IDs are migrated in `AppSettings.init(from:)` so existing
+    /// installs keep working after a model is discontinued.
     public var defaultModel: String {
         switch self {
-        case .gemini: return "gemini-1.5-flash"
-        case .openai: return "gpt-4o-mini"
+        case .gemini: return "gemini-flash-latest"   // always points at the newest Flash model
+        case .openai: return "gpt-6-luna"
         case .ollama: return "llama3.2"
-        case .custom: return "default"
+        case .custom: return "deepseek-chat"
         }
     }
+
+    /// Models that have been shut down by their provider and must be replaced on load.
+    public static let retiredModels: Set<String> = [
+        "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002",
+        "gemini-1.5-flash-8b-001", "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002",
+        "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-3.1-flash-lite-preview"
+    ]
 
     public var defaultEndpoint: String {
         switch self {
@@ -93,7 +105,12 @@ public enum AIProvider: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-public struct AppSettings: Codable {
+/// User preferences.
+///
+/// Decoding is deliberately tolerant: every field falls back to its default when the
+/// key is missing (or unparsable) so `settings.json` written by an older/newer build
+/// never resets the user's stored values. Never change this to a synthesized decoder.
+public struct AppSettings: Codable, Equatable {
     public var preferredEngine: TranslationEngineType = .smart
     public var selectedTone: TranslationTone = .standard
     public var defaultSourceLang: String = "auto"
@@ -107,17 +124,53 @@ public struct AppSettings: Codable {
     // AI
     public var aiProvider: AIProvider = .gemini
     public var aiApiKey: String = ""
-    public var aiModel: String = "gemini-1.5-flash"
+    public var aiModel: String = AIProvider.gemini.defaultModel
     public var aiEndpoint: String = ""
 
     // UX
     public var autoTranslateClipboard: Bool = true
     public var instantTranslateAsYouType: Bool = true
     public var playSpeechAfterTranslation: Bool = false
-    public var globalHotkeyString: String = "⌥ + Space"
-    public var stayOnTop: Bool = true
-    public var soundEffects: Bool = true
     public var showMenuBarIcon: Bool = true
 
     public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case preferredEngine, selectedTone, defaultSourceLang, defaultTargetLang
+        case deepLAuthKey, deepLIsPro, deepLCustomEndpoint
+        case aiProvider, aiApiKey, aiModel, aiEndpoint
+        case autoTranslateClipboard, instantTranslateAsYouType, playSpeechAfterTranslation, showMenuBarIcon
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        preferredEngine = (try? c.decode(TranslationEngineType.self, forKey: .preferredEngine)) ?? .smart
+        selectedTone = (try? c.decode(TranslationTone.self, forKey: .selectedTone)) ?? .standard
+        defaultSourceLang = (try? c.decode(String.self, forKey: .defaultSourceLang)) ?? "auto"
+        defaultTargetLang = (try? c.decode(String.self, forKey: .defaultTargetLang)) ?? "id"
+
+        deepLAuthKey = (try? c.decode(String.self, forKey: .deepLAuthKey)) ?? ""
+        deepLIsPro = (try? c.decode(Bool.self, forKey: .deepLIsPro)) ?? false
+        deepLCustomEndpoint = (try? c.decode(String.self, forKey: .deepLCustomEndpoint)) ?? ""
+
+        aiProvider = (try? c.decode(AIProvider.self, forKey: .aiProvider)) ?? .gemini
+        aiApiKey = (try? c.decode(String.self, forKey: .aiApiKey)) ?? ""
+        aiModel = (try? c.decode(String.self, forKey: .aiModel)) ?? aiProvider.defaultModel
+        aiEndpoint = (try? c.decode(String.self, forKey: .aiEndpoint)) ?? ""
+
+        autoTranslateClipboard = (try? c.decode(Bool.self, forKey: .autoTranslateClipboard)) ?? true
+        instantTranslateAsYouType = (try? c.decode(Bool.self, forKey: .instantTranslateAsYouType)) ?? true
+        playSpeechAfterTranslation = (try? c.decode(Bool.self, forKey: .playSpeechAfterTranslation)) ?? false
+        showMenuBarIcon = (try? c.decode(Bool.self, forKey: .showMenuBarIcon)) ?? true
+
+        // Providers retire model IDs; move users off models that are already shut down.
+        if AIProvider.retiredModels.contains(aiModel) {
+            aiModel = aiProvider.defaultModel
+        }
+        // Legacy builds stored an empty endpoint for Ollama.
+        if aiProvider == .ollama && aiEndpoint.isEmpty {
+            aiEndpoint = aiProvider.defaultEndpoint
+        }
+    }
 }

@@ -75,7 +75,7 @@ public struct SettingsView: View {
                         }
 
                         HStack {
-                            TextField("Model (contoh: gemini-1.5-flash, gpt-4o-mini, llama3.2)", text: $coordinator.settings.aiModel)
+                            TextField("Model (contoh: gemini-flash-latest, gpt-6-luna, llama3.2)", text: $coordinator.settings.aiModel)
                                 .textFieldStyle(.roundedBorder)
 
                             Button("Default") {
@@ -100,9 +100,8 @@ public struct SettingsView: View {
                 GroupBox(label: Label("Perilaku & Tampilan", systemImage: "gearshape.2")) {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Otomatis terjemahkan isi clipboard saat jendela HUD dibuka", isOn: $coordinator.settings.autoTranslateClipboard)
-                        Toggle("Terjemahkan instan saat mengetik (debounce 350ms)", isOn: $coordinator.settings.instantTranslateAsYouType)
+                        Toggle("Terjemahan instan saat mengetik (jeda 700ms)", isOn: $coordinator.settings.instantTranslateAsYouType)
                         Toggle("Putar suara pengucapan (TTS) otomatis setelah selesai terjemah", isOn: $coordinator.settings.playSpeechAfterTranslation)
-                        Toggle("Jaga jendela HUD selalu di atas (Stay on top)", isOn: $coordinator.settings.stayOnTop)
                         Toggle("Tampilkan icon LoomaWord di Menu Bar (Navbar)", isOn: Binding(
                             get: { coordinator.settings.showMenuBarIcon },
                             set: { newValue in
@@ -155,14 +154,9 @@ public struct SettingsView: View {
                             Text("Izin Aksesibilitas macOS:")
                                 .font(.subheadline)
                             Spacer()
-                            Button("Buka Pengaturan Aksesibilitas") {
-                                HotkeyManager.requestAccessibilityPermission()
-                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .font(.caption)
+                            Text("Tidak diperlukan — semua pintasan berjalan tanpa izin khusus.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
                     .padding(8)
@@ -191,19 +185,21 @@ public struct SettingsView: View {
 
                 HStack {
                     Spacer()
-                    Button("Simpan Pengaturan") {
-                        coordinator.saveSettings()
-                    }
-                    .buttonStyle(.borderedProminent)
+                    Label("Perubahan tersimpan otomatis", systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             .padding()
         }
         .onChange(of: coordinator.settings.aiProvider) {
-            coordinator.settings.aiModel = coordinator.settings.aiProvider.defaultModel
-            if coordinator.settings.aiProvider == .ollama {
-                coordinator.settings.aiEndpoint = coordinator.settings.aiProvider.defaultEndpoint
-            }
+            let provider = coordinator.settings.aiProvider
+            coordinator.settings.aiModel = provider.defaultModel
+            // Reset stale endpoints: an Ollama URL left behind would silently send
+            // OpenAI/Gemini requests to localhost.
+            coordinator.settings.aiEndpoint = (provider == .ollama || provider == .custom)
+                ? provider.defaultEndpoint
+                : ""
             coordinator.saveSettings()
         }
     }

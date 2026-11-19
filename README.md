@@ -22,9 +22,12 @@ Customize translation tone with one click:
 - 🎓 **Academic**: Scholarly register with precise academic terminology.
 - 🎨 **Creative**: Idiomatic and contextual adaptation that preserves figurative meaning.
 
+> DeepL's `formality` parameter only exists for some target languages (German, French, Japanese, … — not Indonesian or Korean). LoomaWord sends `prefer_more` / `prefer_less` only when a tone is chosen, and never sends the parameter for the Standard tone, so translations work for every target language.
+
 ### 3. Custom Glossary
 - Define strict domain-specific vocabulary rules (e.g. `pipeline` → `workflow`, `prompt engineering` → `prompt design`).
-- Both AI models and DeepL automatically adhere to your customized term definitions.
+- Glossary rules are applied by the **AI Pro Engine**, filtered to the active language pair (an `en → id` rule never leaks into another pair).
+- The **Instant Engine** does not apply glossary rules; the **DeepL API** uses DeepL's own glossary system, which requires creating the glossary on the DeepL website.
 - Supports per-term toggling, searching, and context notes.
 
 ### 4. Floating Mini HUD & Menu Bar Quick Access
@@ -37,8 +40,21 @@ Customize translation tone with one click:
 
 ### 5. Document Workspace & Translation History
 - **Full-Screen Workspace**: Side-by-side split view designed for translating long documents and articles.
-- **Document Import/Export**: Open `.txt`, `.md`, `.json`, and `.srt` files and export translated results directly.
-- **100% Local & Private**: All settings, glossaries, and translation history are stored locally on your Mac (`~/Library/Application Support/LoomaWord/`) with zero third-party telemetry.
+- **Document Import/Export**: Open `.txt` and `.md` files (up to 100 KB) and export translated results directly. Large texts are automatically split into paragraph-sized chunks before sending.
+- **Translation Cache**: Re-translating identical text (same languages, engine, tone and glossary) is served from an in-memory LRU cache instead of re-billing your API quota.
+- **Local Storage, Remote Processing**: Settings, glossaries and history never leave your Mac (`~/Library/Application Support/LoomaWord/`) and there is zero telemetry — but the text you translate **is** sent to the engine you chose (DeepL, Google, Gemini/OpenAI/Ollama, MyMemory).
+
+---
+
+## 🔐 Privacy & Data Flow
+
+| Data | Where it goes |
+| :--- | :--- |
+| Settings, API keys, glossary, history | Stored **locally** only (plaintext JSON in `~/Library/Application Support/LoomaWord/`) |
+| Text you translate | Sent to the **selected engine's** server: DeepL (`api.deepl.com` / `api-free.deepl.com`), Google (`translate.googleapis.com`), MyMemory, or your configured LLM provider |
+| Telemetry / analytics | **None** |
+
+> ⚠️ The Instant Engine uses Google's undocumented endpoint and MyMemory as a fallback. If you need guaranteed privacy, configure the official DeepL API or a local Ollama model.
 
 ---
 
@@ -73,10 +89,25 @@ LoomaWord/
 
 ## 🚀 Getting Started
 
+### Requirements
+- macOS 14.0 (Sonoma) or later — the app is a **universal binary** (Apple Silicon + Intel).
+- Optional: a DeepL API key, or an AI provider key (Gemini / OpenAI / DeepSeek), or a local Ollama server. Without any key the Instant Engine works out of the box.
+
 ### Option 1: Direct Download (Pre-built)
 1. Download **[LoomaWord.dmg](https://github.com/pramudya440/LoomaWord/releases/latest/download/LoomaWord.dmg)**.
 2. Open the disk image and drag **LoomaWord** into your **Applications** folder.
-3. Launch LoomaWord. Grant Accessibility permission when prompted to enable the `⌘ + C + C` double-copy shortcut.
+3. Launch LoomaWord.
+
+#### ⚠️ "App can't be opened" / Gatekeeper warning
+Release builds are signed with your Developer ID when one is configured. If the build you downloaded is **ad-hoc signed** (no Developer ID), macOS Gatekeeper will refuse to open it. To open it anyway:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/LoomaWord.app
+```
+
+or: right-click (Control-click) **LoomaWord.app** → **Open** → **Open**.
+
+**No Accessibility permission is required** — `⌘ + C + C`, `⌥ + Space` and `⌘ + ⇧ + D` all work without any TCC prompts.
 
 ### Option 2: Build from Source
 ```bash
@@ -84,11 +115,17 @@ LoomaWord/
 git clone https://github.com/pramudya440/LoomaWord.git
 cd LoomaWord
 
-# Build the .app bundle
+# Build the .app bundle (universal, ad-hoc signed)
 ./scripts/make-app.sh
+
+# Or build a distributable, notarization-ready bundle:
+SIGN_ID="Developer ID Application: Your Name (TEAMID)" ./scripts/make-app.sh
 
 # Or install directly to /Applications with autorun on boot:
 ./scripts/install.sh
+
+# Run the unit tests (requires Xcode / the XCTest toolchain)
+swift test
 ```
 
 ---
@@ -102,3 +139,27 @@ cd LoomaWord
 | `⌘ + ⇧ + D` | Alternative Global Hotkey |
 | `Esc` | Close / Dismiss the Floating HUD |
 | `⌘ + C` (on Copy button) | Copy translated text directly to clipboard |
+
+---
+
+## 🧪 Testing & CI
+
+```bash
+swift build          # build everything
+swift test           # run the unit tests (requires Xcode's XCTest toolchain)
+```
+
+Covered by tests: text sanitizing (percent/HTML entities), URL encoding (`&`, `+`, `?`), DeepL target-language and formality mapping, request body construction, tolerant `settings.json` decoding + retired-model migration, glossary language-pair filtering, and document chunking.
+
+GitHub Actions (`.github/workflows/release.yml`) builds and tests every push, and publishes `LoomaWord.dmg` as a release asset when you push a version tag:
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+---
+
+## 📄 License
+
+LoomaWord is released under the [MIT License](LICENSE).

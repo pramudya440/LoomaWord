@@ -7,7 +7,10 @@ final class HUDPanel: NSPanel {
     override var canBecomeMain: Bool { true }
 
     override func cancelOperation(_ sender: Any?) {
-        orderOut(nil)
+        // Esc must also tear down the outside-click monitors, not just hide the panel.
+        MainActor.assumeIsolated {
+            AppDelegate.shared.dismissHUD()
+        }
     }
 }
 
@@ -23,9 +26,72 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
     private let coordinator = TranslationCoordinator.shared
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMainMenu()
         setupStatusItem()
         setupHUDWindow()
         setupInterceptors()
+    }
+
+    /// Standard application menu. Without it the workspace has no Edit menu, so
+    /// ⌘C / ⌘V / ⌘Z / ⌘Q don't work in the text views.
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        // App menu
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Tentang LoomaWord", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        let settingsItem = NSMenuItem(title: "Pengaturan...", action: #selector(menuOpenSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Sembunyikan LoomaWord", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Sembunyikan Lainnya", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Keluar dari LoomaWord", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenuItem.submenu = appMenu
+
+        // Edit menu (required for copy/paste/undo in the text views)
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Potong", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Salin", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Tempel", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Pilih Semua", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenuItem.submenu = editMenu
+
+        // Window menu
+        let windowMenuItem = NSMenuItem()
+        mainMenu.addItem(windowMenuItem)
+        let windowMenu = NSMenu(title: "Jendela")
+        windowMenu.addItem(withTitle: "Buka Workspace", action: #selector(menuOpenWorkspace), keyEquivalent: "o").target = self
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: "Minimal", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenuItem.submenu = windowMenu
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    public func applicationWillTerminate(_ notification: Notification) {
+        // Flush debounced settings/history writes so nothing is lost on quit.
+        coordinator.flushPendingSaves()
+    }
+
+    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        // Double-clicking the app (or clicking the Dock) while it runs must give the
+        // user a way back in — the app is an LSUIElement with no Dock icon otherwise.
+        if hudWindow?.isVisible == true {
+            dismissHUD()
+        } else {
+            openMainWindow()
+        }
+        return true
     }
 
     // MARK: - Status Item
@@ -301,23 +367,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
 
     // MARK: - Interceptors (Hotkeys & Double ⌘+C)
     private func setupInterceptors() {
-        // 1. Keyboard Hotkeys (⌥ Space, ⌘⇧D, and ⌘+C+C via key event)
+        // 1. Keyboard hotkeys (⌥ Space, ⌘⇧D) via Carbon — no Accessibility permission.
+        //    The double-⌘+C gesture is handled ONLY by ClipboardMonitor below, so it
+        //    can never fire twice (previously both detectors triggered at once).
         HotkeyManager.shared.onHotkeyPressed = { [weak self] in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.toggleHUD()
-            }
-        }
-
-        HotkeyManager.shared.onDoubleCmdCPressed = { [weak self] in
-            Task { @MainActor in
-                self?.triggerQuickTranslate(atMouse: true)
             }
         }
         HotkeyManager.shared.startMonitoring()
 
         // 2. Clipboard Monitor for universal ⌘+C+C in any app
         ClipboardMonitor.shared.onDoubleCopy = { [weak self] copiedText in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.triggerQuickTranslate(withText: copiedText, atMouse: true)
             }
         }

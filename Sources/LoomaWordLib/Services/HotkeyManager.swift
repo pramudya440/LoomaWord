@@ -1,86 +1,110 @@
 import Foundation
 import AppKit
+import Carbon.HIToolbox
 
+/// Global hotkeys via Carbon `RegisterEventHotKey`.
+///
+/// Unlike `NSEvent.addGlobalMonitorForEvents`, Carbon hotkeys:
+/// - do **not** require the Accessibility permission, and
+/// - *consume* the keystroke, so ⌥Space / ⌘⇧D don't leak into other apps.
+///
+/// The double-⌘+C gesture is intentionally **not** handled here — it is detected by
+/// `ClipboardMonitor` (pasteboard polling), which needs no permission at all.
 @MainActor
 public final class HotkeyManager {
     public static let shared = HotkeyManager()
 
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
-
-    private var lastCmdCTime: TimeInterval = 0
-    private let doublePressThreshold: TimeInterval = 0.50 // 500ms
+    private static let signature: OSType = 0x4C4F4F4D // 'LOOM'
+    private enum HotKey: UInt32 {
+        case optionSpace = 1
+        case commandShiftD = 2
+    }
 
     public var onHotkeyPressed: (() -> Void)?
-    public var onDoubleCmdCPressed: (() -> Void)?
+
+    private var hotKeyRef: EventHotKeyRef?
+    private var eventHandler: EventHandlerRef?
 
     private init() {}
 
     public func startMonitoring() {
         stopMonitoring()
 
-        // Local monitor (when app has focus)
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return event }
-            if self.processKeyEvent(event: event) {
-                return nil // swallow event
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+
+        let userData = Unmanaged.passUnretained(self).toOpaque()
+        let callback: EventHandlerUPP = { _, event, userData in
+            guard let event, let userData else { return OSStatus(eventNotHandledErr) }
+
+            var hotKeyID = EventHotKeyID()
+            let status = GetEventParameter(
+                event,
+                EventParamName(kEventParamDirectObject),
+                EventParamType(typeEventHotKeyID),
+                nil,
+                MemoryLayout<EventHotKeyID>.size,
+                nil,
+                &hotKeyID
+            )
+            guard status == noErr else { return status }
+
+            let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
+            MainActor.assumeIsolated {
+                manager.handleHotKey(id: hotKeyID.id)
             }
-            return event
+            return noErr
         }
 
-        // Global monitor (when outside app)
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            Task { @MainActor [weak self] in
-                _ = self?.processKeyEvent(event: event)
-            }
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            callback,
+            1,
+            &eventType,
+            userData,
+            &eventHandler
+        )
+
+        register(.optionSpace, keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey))
+        register(.commandShiftD, keyCode: UInt32(kVK_ANSI_D), modifiers: UInt32(cmdKey | shiftKey))
+    }
+
+    private func register(_ id: HotKey, keyCode: UInt32, modifiers: UInt32) {
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id.rawValue)
+        let status = RegisterEventHotKey(
+            keyCode,
+            modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+        if status != noErr {
+            NSLog("HotkeyManager: RegisterEventHotKey failed for id %u (%d)", id.rawValue, status)
         }
     }
 
     public func stopMonitoring() {
-        if let gm = globalMonitor {
-            NSEvent.removeMonitor(gm)
-            globalMonitor = nil
+        if let ref = hotKeyRef {
+            UnregisterEventHotKey(ref)
+            hotKeyRef = nil
         }
-        if let lm = localMonitor {
-            NSEvent.removeMonitor(lm)
-            localMonitor = nil
+        if let handler = eventHandler {
+            RemoveEventHandler(handler)
+            eventHandler = nil
         }
     }
 
-    private func processKeyEvent(event: NSEvent) -> Bool {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-
-        // 1. Double ⌘ + C Detection (KeyCode 8 is 'C')
-        if event.keyCode == 8 && (flags == .command || flags == [.command, .capsLock]) {
-            let now = ProcessInfo.processInfo.systemUptime
-            let diff = now - lastCmdCTime
-            lastCmdCTime = now
-
-            if diff > 0.05 && diff < doublePressThreshold {
-                lastCmdCTime = 0
-                onDoubleCmdCPressed?()
-                return true
-            }
-            return false
-        }
-
-        // 2. Option + Space (KeyCode 49 is Space)
-        if flags.contains(.option) && event.keyCode == 49 {
-            onHotkeyPressed?()
-            return true
-        }
-
-        // 3. Command + Shift + D (KeyCode 2 is 'D')
-        if flags.contains(.command) && flags.contains(.shift) && event.keyCode == 2 {
-            onHotkeyPressed?()
-            return true
-        }
-
-        return false
+    private func handleHotKey(id: UInt32) {
+        guard id == HotKey.optionSpace.rawValue || id == HotKey.commandShiftD.rawValue else { return }
+        onHotkeyPressed?()
     }
 
+    // Kept for compatibility — no longer required for any feature.
     public static func isAccessibilityTrusted() -> Bool {
-        return AXIsProcessTrusted()
+        AXIsProcessTrusted()
     }
 
     public static func requestAccessibilityPermission() {

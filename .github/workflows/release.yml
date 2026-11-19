@@ -1,0 +1,50 @@
+name: CI & Release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-test
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the build number (commit count) is correct
+
+      - name: Build universal app + DMG
+        env:
+          # Optional: "Developer ID Application: Your Name (TEAMID)".
+          # Without it the bundle is ad-hoc signed and Gatekeeper will warn.
+          SIGN_ID: ${{ secrets.SIGN_ID }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          export VERSION
+          ./scripts/make-dmg.sh
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/LoomaWord.dmg
+          generate_release_notes: true

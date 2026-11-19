@@ -321,12 +321,33 @@ struct WorkspaceTranslatorView: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        panel.allowedContentTypes = [.plainText, .json, .utf8PlainText, UTType(filenameExtension: "md") ?? .plainText, UTType(filenameExtension: "srt") ?? .plainText]
+        // Only real plain-text formats: .json / .srt would be corrupted by translating
+        // keys and timestamps wholesale, so they are deliberately not offered.
+        panel.allowedContentTypes = [.plainText, .utf8PlainText, UTType(filenameExtension: "md") ?? .plainText]
 
-        if panel.runModal() == .OK, let url = panel.url {
-            if let content = try? String(contentsOf: url, encoding: .utf8) {
-                coordinator.sourceText = content
-                coordinator.triggerTranslation()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let maxBytes = 100_000 // 100 KB — keeps requests (and API bills) bounded
+        Task {
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                let size = (attributes[.size] as? Int) ?? 0
+                guard size <= maxBytes else {
+                    coordinator.errorMessage = "Berkas terlalu besar (maks 100 KB). Pecah menjadi beberapa berkas terlebih dahulu."
+                    coordinator.statusMessage = "Impor gagal"
+                    return
+                }
+                // Read off the main thread so large files don't freeze the UI.
+                let content = try String(contentsOf: url, encoding: .utf8)
+                await MainActor.run {
+                    coordinator.sourceText = content
+                    coordinator.triggerTranslation()
+                }
+            } catch {
+                await MainActor.run {
+                    coordinator.errorMessage = "Gagal membaca berkas: \(error.localizedDescription)"
+                    coordinator.statusMessage = "Impor gagal"
+                }
             }
         }
     }

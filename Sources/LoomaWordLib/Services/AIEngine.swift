@@ -21,22 +21,14 @@ public final class AIEngine {
         let srcName = Language.find(code: sourceLang)?.name ?? (sourceLang == "auto" ? "any language" : sourceLang)
         let tgtName = Language.find(code: targetLang)?.name ?? targetLang
 
-        // Filter active glossary entries
-        let activeGlossary = glossary.filter { $0.isEnabled && !$0.sourceTerm.isEmpty && !$0.targetTerm.isEmpty }
-        var glossaryRule = ""
-        if !activeGlossary.isEmpty {
-            let terms = activeGlossary.map { "- '\($0.sourceTerm)' must be translated as '\($0.targetTerm)'" }.joined(separator: "\n")
-            glossaryRule = "\n\nStrict Glossary Rules:\n\(terms)"
-        }
-
         let systemPrompt = """
         You are LoomaWord AI, a world-class translation engine and professional linguist.
         Translate the provided text from \(srcName) to \(tgtName).
-        
+
         Tone/Style Specification:
         \(tone.promptInstruction)
-        \(glossaryRule)
-        
+        \(Self.glossaryRule(glossary, sourceLang: sourceLang, targetLang: targetLang))
+
         Rules:
         1. Produce an exceptionally natural, nuanced translation matching the specified tone.
         2. Never output meta-commentary, markdown ticks, or explanations.
@@ -48,13 +40,18 @@ public final class AIEngine {
         }
         """
 
+        // Never fall back to a hardcoded (possibly retired) model ID.
+        let resolvedModel = model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? provider.defaultModel
+            : model
+
         switch provider {
         case .gemini:
             return try await translateGemini(
                 text: text,
                 systemPrompt: systemPrompt,
                 apiKey: apiKey,
-                model: model.isEmpty ? "gemini-1.5-flash" : model,
+                model: resolvedModel,
                 startTime: startTime
             )
         case .openai, .ollama, .custom:
@@ -63,11 +60,37 @@ public final class AIEngine {
                 systemPrompt: systemPrompt,
                 provider: provider,
                 apiKey: apiKey,
-                model: model,
+                model: resolvedModel,
                 customEndpoint: customEndpoint,
                 startTime: startTime
             )
         }
+    }
+
+    // MARK: - Prompt helpers (pure, unit-tested)
+
+    /// Only apply glossary entries that match the active language pair (or are
+    /// language-agnostic), so an en→id rule never leaks into a ja→en translation.
+    static func glossaryRule(_ glossary: [GlossaryItem], sourceLang: String, targetLang: String) -> String {
+        let src = sourceLang.lowercased()
+        let tgt = targetLang.lowercased()
+
+        let active = glossary.filter { item in
+            guard item.isEnabled,
+                  !item.sourceTerm.isEmpty,
+                  !item.targetTerm.isEmpty else { return false }
+            let itemSrc = item.sourceLang.lowercased()
+            let itemTgt = item.targetLang.lowercased()
+            // Match exact pair, reversed pair, or wildcard-ish entries.
+            if itemSrc == src && itemTgt == tgt { return true }
+            if itemSrc == "auto" || itemTgt == "auto" { return true }
+            return false
+        }
+
+        guard !active.isEmpty else { return "" }
+        let terms = active.map { "- '\($0.sourceTerm)' must be translated as '\($0.targetTerm)'" }
+            .joined(separator: "\n")
+        return "\n\nStrict Glossary Rules:\n\(terms)"
     }
 
     // MARK: - Gemini API
@@ -83,8 +106,7 @@ public final class AIEngine {
             throw NSError(domain: "AIEngine", code: 401, userInfo: [NSLocalizedDescriptionKey: "Gemini API Key belum diisi di Pengaturan."])
         }
 
-        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(key)"
-        guard let url = URL(string: endpoint) else {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(key)") else {
             throw NSError(domain: "AIEngine", code: 400, userInfo: [NSLocalizedDescriptionKey: "URL Gemini tidak valid."])
         }
 
@@ -111,17 +133,16 @@ public final class AIEngine {
                 "response_mime_type": "application/json"
             ]
         ]
-
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "AIEngine", code: 500, userInfo: [NSLocalizedDescriptionKey: "Respons server tidak valid."])
+        let response: HTTPClient.Response
+        do {
+            response = try await HTTPClient.send(request, timeout: 45, maxAttempts: 2)
+        } catch let error as HTTPClient.ClientError {
+            throw Self.geminiError(error)
         }
-
-        if http.statusCode != 200 {
-            let msg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-            throw NSError(domain: "AIEngine", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Gemini Error: \(msg)"])
+        guard response.statusCode == 200 else {
+            throw Self.geminiError(.http(status: response.statusCode, body: HTTPClient.truncate(response.data), retryAfter: nil))
         }
 
         struct GeminiResponse: Codable {
@@ -137,12 +158,28 @@ public final class AIEngine {
             let candidates: [Candidate]?
         }
 
-        let decoded = try JSONDecoder().decode(GeminiResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(GeminiResponse.self, from: response.data)
         guard let jsonText = decoded.candidates?.first?.content.parts.first?.text else {
             throw NSError(domain: "AIEngine", code: 500, userInfo: [NSLocalizedDescriptionKey: "Gemini tidak mengembalikan teks jawaban."])
         }
 
-        return parseJSONResult(jsonText, engineName: "Gemini (\(model))", startTime: startTime, fallbackText: jsonText)
+        return Self.parseJSONResult(jsonText, engineName: "Gemini (\(model))", startTime: startTime, fallbackText: jsonText)
+    }
+
+    private static func geminiError(_ error: HTTPClient.ClientError) -> NSError {
+        switch error {
+        case .http(let status, let body, _):
+            let hint: String
+            switch status {
+            case 400: hint = "Permintaan ditolak — model mungkin tidak tersedia atau API key salah."
+            case 401, 403: hint = "Gemini API Key tidak valid atau tidak berwenang."
+            case 429: hint = "Batas permintaan Gemini tercapai (rate limit). Coba lagi nanti."
+            default: hint = "Gemini Error: \(body)"
+            }
+            return NSError(domain: "AIEngine", code: status, userInfo: [NSLocalizedDescriptionKey: hint])
+        case .network(let message):
+            return NSError(domain: "AIEngine", code: -1, userInfo: [NSLocalizedDescriptionKey: "Gagal menghubungi Gemini: \(message)"])
+        }
     }
 
     // MARK: - OpenAI / Ollama / Custom API
@@ -171,34 +208,71 @@ public final class AIEngine {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !key.isEmpty {
+        if !key.isEmpty && provider != .ollama {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
 
-        let chosenModel = model.isEmpty ? provider.defaultModel : model
-
-        let payload: [String: Any] = [
-            "model": chosenModel,
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": text]
-            ],
-            "temperature": 0.2,
-            "response_format": ["type": "json_object"]
-        ]
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "AIEngine", code: 500, userInfo: [NSLocalizedDescriptionKey: "Respons jaringan tidak valid."])
+        func makePayload(includeResponseFormat: Bool) -> [String: Any] {
+            var payload: [String: Any] = [
+                "model": model,
+                "messages": [
+                    ["role": "system", "content": systemPrompt],
+                    ["role": "user", "content": text]
+                ],
+                "temperature": 0.2
+            ]
+            // Some servers (older Ollama, custom proxies) reject `response_format`.
+            if includeResponseFormat {
+                payload["response_format"] = ["type": "json_object"]
+            }
+            return payload
         }
 
-        if http.statusCode != 200 {
-            let msg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-            throw NSError(domain: "AIEngine", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "AI Server Error: \(msg)"])
+        request.httpBody = try JSONSerialization.data(withJSONObject: makePayload(includeResponseFormat: true))
+
+        let response: HTTPClient.Response
+        do {
+            response = try await HTTPClient.send(request, timeout: 60, maxAttempts: 2)
+        } catch let error as HTTPClient.ClientError {
+            if case .http(400, _, _) = error {
+                // Retry once without response_format — many OpenAI-compatible servers
+                // don't support it but the rest of the request is fine.
+                request.httpBody = try JSONSerialization.data(withJSONObject: makePayload(includeResponseFormat: false))
+                let retry = try await HTTPClient.send(request, timeout: 60, maxAttempts: 1)
+                guard retry.statusCode == 200 else {
+                    throw Self.openAIError(retry.statusCode, body: HTTPClient.truncate(retry.data), provider: provider)
+                }
+                return try Self.parseOpenAI(retry.data, model: model, provider: provider, startTime: startTime)
+            }
+            if case .network(let message) = error {
+                throw NSError(domain: "AIEngine", code: -1, userInfo: [NSLocalizedDescriptionKey: "Gagal menghubungi \(provider.rawValue): \(message)"])
+            }
+            if case .http(let status, let body, _) = error {
+                throw Self.openAIError(status, body: body, provider: provider)
+            }
+            // Unreachable: ClientError only has .http and .network.
+            throw Self.openAIError(-1, body: error.localizedDescription, provider: provider)
         }
 
+        guard response.statusCode == 200 else {
+            throw Self.openAIError(response.statusCode, body: HTTPClient.truncate(response.data), provider: provider)
+        }
+        return try Self.parseOpenAI(response.data, model: model, provider: provider, startTime: startTime)
+    }
+
+    private static func openAIError(_ status: Int, body: String, provider: AIProvider) -> NSError {
+        let hint: String
+        switch status {
+        case 400: hint = "Permintaan ditolak — periksa model dan endpoint \(provider.rawValue). Body: \(body)"
+        case 401, 403: hint = "API key tidak valid untuk \(provider.rawValue)."
+        case 404: hint = "Endpoint atau model tidak ditemukan (\(provider.rawValue)). Periksa model di Pengaturan."
+        case 429: hint = "Batas permintaan \(provider.rawValue) tercapai (rate limit)."
+        default: hint = "\(provider.rawValue) Error: \(body)"
+        }
+        return NSError(domain: "AIEngine", code: status, userInfo: [NSLocalizedDescriptionKey: hint])
+    }
+
+    private static func parseOpenAI(_ data: Data, model: String, provider: AIProvider, startTime: Double) throws -> TranslationResult {
         struct OpenAIChatResponse: Codable {
             struct Choice: Codable {
                 struct Message: Codable {
@@ -214,11 +288,11 @@ public final class AIEngine {
             throw NSError(domain: "AIEngine", code: 500, userInfo: [NSLocalizedDescriptionKey: "AI tidak mengembalikan pesan."])
         }
 
-        let name = provider == .ollama ? "Ollama (\(chosenModel))" : "AI Pro (\(chosenModel))"
+        let name = provider == .ollama ? "Ollama (\(model))" : "AI Pro (\(model))"
         return parseJSONResult(content, engineName: name, startTime: startTime, fallbackText: content)
     }
 
-    private func parseJSONResult(_ rawText: String, engineName: String, startTime: Double, fallbackText: String) -> TranslationResult {
+    private static func parseJSONResult(_ rawText: String, engineName: String, startTime: Double, fallbackText: String) -> TranslationResult {
         let latency = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
 
         // Clean possible markdown code fences
@@ -243,17 +317,17 @@ public final class AIEngine {
            let obj = try? JSONDecoder().decode(AIOutput.self, from: data),
            let trans = obj.translation {
             return TranslationResult(
-                translatedText: trans,
+                translatedText: TextSanitizer.clean(trans),
                 detectedSourceLang: obj.detected_source_language?.lowercased(),
                 engine: engineName,
-                alternatives: obj.alternatives ?? [],
+                alternatives: (obj.alternatives ?? []).map { TextSanitizer.clean($0) },
                 latencyMs: latency
             )
         }
 
         // Fallback if model returned plain string
         return TranslationResult(
-            translatedText: fallbackText.trimmingCharacters(in: .whitespacesAndNewlines),
+            translatedText: TextSanitizer.clean(fallbackText),
             detectedSourceLang: nil,
             engine: engineName,
             alternatives: [],
