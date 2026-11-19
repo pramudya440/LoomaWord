@@ -2,6 +2,8 @@
 
 A super-fast, lightweight, native macOS translation app built with Swift and SwiftUI, designed to give you the full translation experience with zero bloat and multi-engine flexibility.
 
+**[⬇️ Unduh LoomaWord.dmg (Versi Terbaru)](https://github.com/pramudya440/LoomaWord/releases/latest/download/LoomaWord.dmg)**
+
 ---
 
 ## 🌟 Fitur Unggulan (Pro Experience)
