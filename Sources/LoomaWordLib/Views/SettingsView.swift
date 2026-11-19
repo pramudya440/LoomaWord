@@ -108,7 +108,7 @@ public struct SettingsView: View {
 
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text("Pintasan DeepL Asli:")
+                                Text("Pintasan Cepat Instan:")
                                     .font(.subheadline.bold())
                                 Spacer()
                                 Text("⌘ + C + C (Tekan C 2x)")

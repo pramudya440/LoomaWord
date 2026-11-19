@@ -11,6 +11,7 @@ killall ReaDeepL 2>/dev/null || true
 
 echo "📁 Menyalin ke /Applications/LoomaWord.app..."
 rm -rf /Applications/LoomaWord.app
+rm -rf /Applications/ReaDeepL.app
 cp -R dist/LoomaWord.app /Applications/
 
 echo "⚙️ Mendaftarkan ke Login Items (Autorun saat Mac nyala)..."
