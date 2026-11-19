@@ -161,9 +161,10 @@ public struct FloatingHUDView: View {
                         }
                         Divider()
                         Button(action: {
-                            coordinator.settings.showMenuBarIcon.toggle()
+                            let newVisibility = !coordinator.settings.showMenuBarIcon
+                            coordinator.settings.showMenuBarIcon = newVisibility
                             coordinator.saveSettings()
-                            AppDelegate.shared.updateMenuBarIconVisibility(visible: coordinator.settings.showMenuBarIcon)
+                            AppDelegate.shared.updateMenuBarIconVisibility(visible: newVisibility)
                         }) {
                             Label(coordinator.settings.showMenuBarIcon ? "Sembunyikan Icon Menu Bar" : "Tampilkan Icon Menu Bar",
                                   systemImage: coordinator.settings.showMenuBarIcon ? "eye.slash" : "eye")

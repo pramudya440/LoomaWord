@@ -30,27 +30,33 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
 
     // MARK: - Status Item
     private func setupStatusItem() {
-        guard coordinator.settings.showMenuBarIcon else { return }
-        if statusItem == nil {
-            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        }
-        statusItem?.behavior = [.removalAllowed]
-        if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "character.bubble.fill", accessibilityDescription: "LoomaWord")
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.action = #selector(statusItemClicked)
-            button.target = self
+        if coordinator.settings.showMenuBarIcon {
+            updateMenuBarIconVisibility(visible: true)
         }
     }
 
     public func updateMenuBarIconVisibility(visible: Bool) {
         if visible {
-            if statusItem == nil {
-                setupStatusItem()
+            // Clean up any existing item first so macOS attaches a fresh, active status item
+            if let old = statusItem {
+                NSStatusBar.system.removeStatusItem(old)
+                statusItem = nil
             }
-            statusItem?.isVisible = true
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            item.behavior = [.removalAllowed]
+            if let button = item.button {
+                button.image = NSImage(systemSymbolName: "character.bubble.fill", accessibilityDescription: "LoomaWord")
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+                button.action = #selector(statusItemClicked)
+                button.target = self
+            }
+            item.isVisible = true
+            self.statusItem = item
         } else {
-            statusItem?.isVisible = false
+            if let old = statusItem {
+                NSStatusBar.system.removeStatusItem(old)
+                statusItem = nil
+            }
         }
     }
 
@@ -118,7 +124,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
 
     @objc private func menuHideIcon() {
         coordinator.settings.showMenuBarIcon = false
-        StorageManager.shared.saveSettings(coordinator.settings)
+        coordinator.saveSettings()
         updateMenuBarIconVisibility(visible: false)
     }
 
