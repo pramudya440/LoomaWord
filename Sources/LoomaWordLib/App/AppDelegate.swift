@@ -32,7 +32,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "character.book.closed.fill", accessibilityDescription: "LoomaWord")
+            button.image = NSImage(systemSymbolName: "character.bubble.fill", accessibilityDescription: "LoomaWord")
             button.action = #selector(statusItemClicked)
             button.target = self
         }

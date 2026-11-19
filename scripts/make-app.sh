@@ -39,6 +39,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>com.pramudya.loomaword</string>
   <key>CFBundleName</key><string>LoomaWord</string>
   <key>CFBundleDisplayName</key><string>LoomaWord Pro</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
   <key>CFBundleVersion</key><string>1</string>
@@ -50,10 +51,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# Copy DeepL icon if present
-if [ -f "/Applications/DeepL.app/Contents/Resources/AppIcon.icns" ]; then
-  cp "/Applications/DeepL.app/Contents/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
-  /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$APP/Contents/Info.plist" 2>/dev/null || true
+# 5. Copy custom original LoomaWord AppIcon
+if [ -f "Resources/AppIcon.icns" ]; then
+  cp "Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 fi
 
 codesign --force --deep --sign - "$APP"
