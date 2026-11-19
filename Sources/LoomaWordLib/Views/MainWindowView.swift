@@ -306,7 +306,7 @@ struct WorkspaceTranslatorView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("ReaDeepL Pro Suite")
+                Text("LoomaWord Pro Suite")
                     .font(.caption2)
                     .foregroundColor(.secondary.opacity(0.6))
             }

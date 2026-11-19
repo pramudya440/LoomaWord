@@ -12,8 +12,15 @@ public final class StorageManager {
 
     private init() {
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        appSupportDir = base.appendingPathComponent("ReaDeepL", isDirectory: true)
+        let oldDir = base.appendingPathComponent("ReaDeepL", isDirectory: true)
+        let newDir = base.appendingPathComponent("LoomaWord", isDirectory: true)
 
+        // Automatically migrate existing data if present
+        if fileManager.fileExists(atPath: oldDir.path) && !fileManager.fileExists(atPath: newDir.path) {
+            try? fileManager.moveItem(at: oldDir, to: newDir)
+        }
+
+        appSupportDir = newDir
         try? fileManager.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
     }
 

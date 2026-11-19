@@ -38,7 +38,7 @@ public final class DeepLEngine {
         request.httpMethod = "POST"
         request.setValue("DeepL-Auth-Key \(trimmedKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("ReaDeepL-macOS/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("LoomaWord-macOS/1.0", forHTTPHeaderField: "User-Agent")
 
         // Map tone to DeepL formality
         var formalityString: String? = nil

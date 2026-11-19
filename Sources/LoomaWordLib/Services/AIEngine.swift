@@ -30,7 +30,7 @@ public final class AIEngine {
         }
 
         let systemPrompt = """
-        You are ReaDeepL AI, a world-class translation engine and professional linguist.
+        You are LoomaWord AI, a world-class translation engine and professional linguist.
         Translate the provided text from \(srcName) to \(tgtName).
         
         Tone/Style Specification:

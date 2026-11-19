@@ -4,7 +4,7 @@ import Darwin
 let frameworksDir = (Bundle.main.bundlePath as NSString)
     .appendingPathComponent("Contents/Frameworks")
 let dylibPath = (frameworksDir as NSString)
-    .appendingPathComponent("libReaDeepLLib.dylib")
+    .appendingPathComponent("libLoomaWordLib.dylib")
 
 guard FileManager.default.fileExists(atPath: dylibPath) else {
     FileHandle.standardError.write("launcher: dylib not found at \(dylibPath)\n".data(using: .utf8)!)
@@ -17,8 +17,8 @@ guard let handle = dlopen(dylibPath, RTLD_NOW | RTLD_GLOBAL) else {
     exit(1)
 }
 
-guard let sym = dlsym(handle, "reaDeepLMain") else {
-    FileHandle.standardError.write("launcher: symbol reaDeepLMain not found\n".data(using: .utf8)!)
+guard let sym = dlsym(handle, "loomaWordMain") else {
+    FileHandle.standardError.write("launcher: symbol loomaWordMain not found\n".data(using: .utf8)!)
     exit(1)
 }
 

@@ -1,6 +1,6 @@
-# ReaDeepL Pro — Native macOS Translation Suite
+# LoomaWord Pro — Native macOS Translation Suite
 
-A super-fast, lightweight, native macOS translation app built with Swift and SwiftUI, designed to give you the full **DeepL Pro** experience with zero bloat and multi-engine flexibility.
+A super-fast, lightweight, native macOS translation app built with Swift and SwiftUI, designed to give you the full translation experience with zero bloat and multi-engine flexibility.
 
 ---
 
@@ -34,7 +34,7 @@ Sesuaikan gaya bahasa terjemahan dengan 1 klik:
 ### 5. Workspace Dokumen & Riwayat Terjemahan
 - Mode jendela penuh (*Workspace*) untuk menerjemahkan paragraf panjang berdampingan.
 - **Buka Dokumen**: Impor berkas teks `.txt`, `.md`, `.json`, `.srt` dan ekspor langsung hasilnya.
-- **Riwayat Terjemahan**: Semua terjemahan tersimpan aman secara lokal di disk Anda (`~/Library/Application Support/ReaDeepL/`), dapat dicari, dan bebas dari pelacak/telemetri pihak ketiga.
+- **Riwayat Terjemahan**: Semua terjemahan tersimpan aman secara lokal di disk Anda (`~/Library/Application Support/LoomaWord/`), dapat dicari, dan bebas dari pelacak/telemetri pihak ketiga.
 
 ---
 
@@ -43,29 +43,31 @@ Sesuaikan gaya bahasa terjemahan dengan 1 klik:
 Menggunakan pola arsitektur **Stable Launcher Stub + Rebuildable Dynamic Library** (mirip arsitektur aplikasi native performa tinggi macOS):
 
 ```text
-rea deepL/
+LoomaWord/
 ├── Package.swift                     # Definisi SwiftPM target
 ├── Sources/
-│   ├── ReaDeepLLib/                 # Implementasi Utama (SwiftUI + AppKit)
+│   ├── LoomaWordLib/                # Implementasi Utama (SwiftUI + AppKit)
 │   │   ├── Models/                  # Language, Settings, Glossary, History, UIState
 │   │   ├── Services/                # DeepLEngine, AIEngine, FastEngine, Coordinator, TTS, Hotkeys
 │   │   ├── Views/                   # FloatingHUDView, MainWindowView, GlossaryView, HistoryView
 │   │   └── App/                     # AppDelegate, status bar item & window controller
-│   └── ReaDeepLLauncher/            # Entry point untuk swift run
+│   └── LoomaWordLauncher/           # Entry point untuk swift run
 ├── Tools/
 │   └── Launcher/main.swift          # Stub peluncur stabil (dlopen) agar izin macOS tetap awet
 ├── scripts/
 │   ├── make-app.sh                  # Skrip kompilasi dan assembly bundle .app
+│   ├── make-dmg.sh                  # Skrip pembuat installer disk image (.dmg)
+│   ├── install.sh                   # Pasang ke /Applications & Login Items
 │   └── run.sh                       # Skrip build & jalankan
 └── dist/
-    └── ReaDeepL.app                 # Aplikasi macOS mandiri siap pakai
+    └── LoomaWord.app                # Aplikasi macOS mandiri siap pakai
 ```
 
 ---
 
 ## 🚀 Cara Menjalankan
 
-### Membangun Aplikasi (`dist/ReaDeepL.app`):
+### Membangun Aplikasi (`dist/LoomaWord.app`):
 ```bash
 ./scripts/make-app.sh
 ```
@@ -74,7 +76,7 @@ rea deepL/
 ```bash
 ./scripts/install.sh
 ```
-Perintah ini akan memasang `ReaDeepL.app` ke `/Applications/` dan mendaftarkannya ke **Login Items macOS**, sehingga akan otomatis aktif setiap kali Mac dinyalakan tanpa perlu dibuka manual.
+Perintah ini akan memasang `LoomaWord.app` ke `/Applications/` dan mendaftarkannya ke **Login Items macOS**, sehingga akan otomatis aktif setiap kali Mac dinyalakan tanpa perlu dibuka manual.
 
 ### Menjalankan Langsung (Testing):
 ```bash
@@ -87,7 +89,7 @@ Perintah ini akan memasang `ReaDeepL.app` ke `/Applications/` dan mendaftarkanny
 
 | Pintasan | Fungsi |
 | :--- | :--- |
-| **`⌘ + C + C`** | **Pintasan DeepL Asli**: Blok teks di aplikasi manapun lalu tekan `⌘ + C` dua kali dengan cepat. Panel terjemahan instan akan muncul melayang tepat di posisi kursor mouse Anda! |
+| **`⌘ + C + C`** | **Pintasan Cepat**: Blok teks di aplikasi manapun lalu tekan `⌘ + C` dua kali dengan cepat. Panel terjemahan instan akan muncul melayang tepat di posisi kursor mouse Anda! |
 | `⌥ + Space` | Buka / Sembunyikan Floating HUD Translator secara manual dari mana saja |
 | `⌘ + ⇧ + D` | Alternatif Hotkey Global untuk Floating HUD |
 | `Esc` | Tutup panel Floating HUD |

@@ -1,6 +1,6 @@
 import Foundation
 import Cocoa
-import ReaDeepLLib
+import LoomaWordLib
 
 @MainActor
 func main() {

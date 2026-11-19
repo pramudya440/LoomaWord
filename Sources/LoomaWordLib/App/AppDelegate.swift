@@ -32,7 +32,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "character.book.closed.fill", accessibilityDescription: "ReaDeepL")
+            button.image = NSImage(systemSymbolName: "character.book.closed.fill", accessibilityDescription: "LoomaWord")
             button.action = #selector(statusItemClicked)
             button.target = self
         }
@@ -200,7 +200,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.center()
-        window.title = "ReaDeepL Pro Suite"
+        window.title = "LoomaWord Pro Suite"
         window.contentView = NSHostingView(rootView: MainWindowView(coordinator: coordinator))
         window.isReleasedWhenClosed = false
 
@@ -236,8 +236,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // MARK: - C Export for Launcher Stub
-@_cdecl("reaDeepLMain")
-public func reaDeepLMain() {
+@_cdecl("loomaWordMain")
+public func loomaWordMain() {
     MainActor.assumeIsolated {
         let app = NSApplication.shared
         let delegate = AppDelegate.shared

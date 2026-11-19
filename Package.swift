@@ -2,21 +2,21 @@
 import PackageDescription
 
 let package = Package(
-    name: "ReaDeepL",
+    name: "LoomaWord",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "ReaDeepL", targets: ["ReaDeepLLauncher"]),
-        .library(name: "ReaDeepLLib", type: .dynamic, targets: ["ReaDeepLLib"])
+        .executable(name: "LoomaWord", targets: ["LoomaWordLauncher"]),
+        .library(name: "LoomaWordLib", type: .dynamic, targets: ["LoomaWordLib"])
     ],
     targets: [
         .target(
-            name: "ReaDeepLLib",
-            path: "Sources/ReaDeepLLib"
+            name: "LoomaWordLib",
+            path: "Sources/LoomaWordLib"
         ),
         .executableTarget(
-            name: "ReaDeepLLauncher",
-            dependencies: ["ReaDeepLLib"],
-            path: "Sources/ReaDeepLLauncher"
+            name: "LoomaWordLauncher",
+            dependencies: ["LoomaWordLib"],
+            path: "Sources/LoomaWordLauncher"
         )
     ]
 )

@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_NAME="ReaDeepL"
+APP_NAME="LoomaWord"
 APP="dist/${APP_NAME}.app"
 DMG="dist/${APP_NAME}.dmg"
 STAGE="dist/.dmg-stage"
